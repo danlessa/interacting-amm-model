@@ -8,7 +8,7 @@ from random import random, choice
 import numpy as np
 
 ### Simulation Configuration
-N_timesteps = 100
+N_timesteps = 150
 N_samples = 5
 
 ### Abstract Definitions ###
@@ -82,7 +82,7 @@ pair_states = AMM_States(pair_states)
 
 # Simulation Initial State
 initial_state = {
-    'market_price_token_1': InitialValue(5.0, Fiat),
+    'market_price': InitialValue(5, Fiat),
     'pair_state': InitialValue(pair_states, AMM_States)
 }
 
@@ -90,7 +90,7 @@ initial_state = {
 params = {
     'amms': Param(amms, list[AMM]),
     'user_action_intensity': Param(0.1, Percentage),
-    'arbitrage_intensity': ParamSweep([0.0, 0.05, 0.1], Percentage),
+    'arbitrage_intensity': ParamSweep([0.0, 0.1, 0.3], Percentage),
     'swap_vs_liquidity_preference': Param(0.9, Percentage)
 }
 
@@ -117,7 +117,9 @@ def p_arbitrage(params, _2, _3, state) -> Signal:
         amm_price = reserve_2 / reserve_1
 
         # Optimal Token 1 value to make the AMM rebound to the market price
-        optimal_value = (reserve_1 - reserve_2) / (amm_price + market_price)
+        price_error = amm_price + market_price
+        optimal_value = (reserve_1 * market_price - reserve_2) / price_error
+      
 
         # Optimal User Action for making the rebound
         optimal_arbitrage = PairState(-optimal_value, optimal_value * amm_price)
