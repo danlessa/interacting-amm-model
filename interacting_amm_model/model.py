@@ -15,17 +15,14 @@ N_samples = 5
 # Units of Measurement
 Wei = int
 Percentage = float
-Fiat = float
 
 # Types and Classes
-
 class AMM(NamedTuple):
     """
     Parameters and properties of a AMM
     """
     label: str
     transaction_fee: Percentage
-    gas_fee: Fiat
 
 
 @dataclass
@@ -78,9 +75,9 @@ UserActionDirection = (1, -1)
 ### Initial State & Parameters ###
 
 # Initial state for the AMMs
-amms = [AMM('uniswap', 0.003, 20),
-        AMM('honeyswap', 0.003, 0.2),
-        AMM('curve', 0.0015, 10)]
+amms = [AMM('uniswap', 0.003),
+        AMM('honeyswap', 0.003),
+        AMM('curve', 0.0015)]
 
 # Generate initial reserves for each AMM
 initial_reserve_1 = 10000
@@ -90,6 +87,9 @@ pair_states = {amm.label: PairState(initial_reserve_1, initial_reserve_2)
 pair_states = AMM_States(pair_states)
 
 amms = {amm.label: amm for amm in amms}
+
+
+# For this current iteration, price = token 2 price in terms of token 1
 
 # Simulation Initial State
 initial_state = {
