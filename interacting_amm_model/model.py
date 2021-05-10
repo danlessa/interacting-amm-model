@@ -37,6 +37,9 @@ class PairState():
     reserve_token_2: float
 
     def __add__(self, o):
+        """
+        Summation of two Pair States.
+        """
         if o == {} or o is None:
             return self
         else:
@@ -45,6 +48,9 @@ class PairState():
         return self
     
     def __mul__(self, o: float):
+        """
+        Multiplication of a Pair State by a scalar.
+        """
         self.reserve_token_1 *= o
         self.reserve_token_2 *= o
         return self
@@ -55,6 +61,9 @@ class AMM_States(dict):
     Representation of a collection of AMMs for a same pair
     """
     def __add__(self, o):
+        """
+        Summation of two AMM_States
+        """
         missing_keys = set(self.keys()) - set(o.keys())
         for key in self.keys():
             self[key] += o.get(key, {})
@@ -80,6 +89,8 @@ pair_states = {amm.label: PairState(initial_reserve_1, initial_reserve_2)
                for amm in amms}
 pair_states = AMM_States(pair_states)
 
+amms = {amm.label: amm for amm in amms}
+
 # Simulation Initial State
 initial_state = {
     'market_price': InitialValue(5, Fiat),
@@ -89,14 +100,16 @@ initial_state = {
 # Simulation Parameters
 params = {
     'amms': Param(amms, list[AMM]),
-    'user_action_intensity': Param(0.1, Percentage),
+    'user_action_intensity': ParamSweep([0.1, 0.2], Percentage),
     'arbitrage_intensity': ParamSweep([0.0, 0.1, 0.3], Percentage),
-    'swap_vs_liquidity_preference': Param(0.9, Percentage)
+    'swap_vs_liquidity_preference': ParamSweep([0.5, 0.9], Percentage)
 }
+
+sweep_params = {k for k, v in params.items() if type(v) is ParamSweep}
 
 # Clean up initial state & params
 initial_state = prepare_state(initial_state)
-params = prepare_params(params)
+params = prepare_params(params, cartesian_sweep=True)
 
 ### Simulation Logic ###
 
@@ -140,11 +153,13 @@ def p_user_action(params, _2, _3, state) -> Signal:
     # Retrieve state and params
     user_action_intensity = params['user_action_intensity']
     swap_vs_liquidity_preference = params['swap_vs_liquidity_preference']
+    amms = params['amms']
     pair_states: AMM_States = state['pair_state']
 
     delta_pair_state = AMM_States()
     for amm, pair_state in pair_states.items():
         # AMM State
+        amm_fee = amms[amm].transaction_fee
         token_1_reserve = pair_state.reserve_token_1
         token_2_reserve = pair_state.reserve_token_2
 
@@ -163,13 +178,21 @@ def p_user_action(params, _2, _3, state) -> Signal:
         # Set the token amounts based on the sorted direction
         if direction == 1:
             token_amount_1 = token_1_reserve * intensity
-            token_amount_2 = token_amount_1 * token_2_reserve / token_1_reserve
+            token_2_price = token_2_reserve / token_1_reserve
+            token_amount_2 = token_amount_1 * token_2_price
         else:
             token_amount_2 = token_2_reserve * intensity
-            token_amount_1 = token_amount_2 * token_1_reserve / token_2_reserve
+            token_1_price = token_1_reserve / token_2_reserve
+            token_amount_1 = token_amount_2 * token_1_price 
 
         # Take action
         if action == 'Swap':
+            if direction == 1:
+                swap_fee = token_amount_1 * amm_fee
+                token_amount_1 -= swap_fee
+            else:
+                swap_fee = token_amount_2 * amm_fee
+                token_amount_2 -= swap_fee
             token_1_reserve = -1 * token_amount_1 * direction
             token_2_reserve = token_amount_2 * direction
         elif action == 'MintBurn':
